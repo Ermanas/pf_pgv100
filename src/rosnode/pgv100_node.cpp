@@ -175,6 +175,18 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     {
       agv_y_pos_des = agv_y_pos_des - 16384;
     }
+
+// Get Lane-Detection from the byte array [Bytes 2 | Bit 6-7]
+    bitset<7> lane_detect_byte(read_buf[1]);
+    string agv_lane_detect_str = lane_detect_byte.to_string();
+    strlength = agv_lane_detect_str.length();
+    cout << agv_lane_detect_str << endl;
+    agv_lane_detect_str = agv_lane_detect_str.substr(1,2);
+    cout << agv_lane_detect_str << endl;
+    char agv_lane_detect_char[strlength + 1];
+    strcpy(agv_lane_detect_char, agv_lane_detect_str.c_str());
+    char *ldEnd;
+    int agv_lane_detect_des = strtoull(agv_lane_detect_char, &ldEnd, 2);
     /**
      * This is a message object. You stuff it with data, and then publish it.
      */
@@ -187,6 +199,7 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     msg.x_pos = agv_x_pos_des/10; // mm
     msg.y_pos = agv_y_pos_des; // mm
     msg.direction = selected_dir;
+    msg.lane_detect = agv_lane_detect_des;
     //ROS_INFO("AGV Angle: %s", msg.data.c_str());
 
     /**
