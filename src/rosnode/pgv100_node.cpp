@@ -18,13 +18,14 @@
 #include <signal.h>
 #include <sstream>
 
+using namespace std;
+
 // Set the port which your device is connected.
-const string PORT = "/dev/ttyUSB0";
 
 //using namespace std;
 // To handle CTRL + C Interrupt
 void my_handler(int s);
-int serial_port = open(PORT, O_RDWR);
+int serial_port = open("/dev/ttyUSB0", O_RDWR);
 
 int main(int argc, char **argv)
 {
@@ -137,6 +138,7 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     char read_buf [256];
     memset(&read_buf, '\0', sizeof(read_buf));
     int byte_count = read(serial_port, &read_buf, sizeof(read_buf));
+    
     // Get the angle from the byte array [Byte 11-12]
     std::bitset<7> ang_1(read_buf[10]);
     std::bitset<7> ang_0(read_buf[11]);
@@ -147,6 +149,18 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     char *angEnd;
     float agv_ang_des = strtoull(agv_ang_char, &angEnd, 2);
 
+    // Get the X-Position from the byte array [Bytes 3-4-5-6]
+    bitset<3> x_pos_3(read_buf[2]);
+    bitset<7> x_pos_2(read_buf[3]);
+    bitset<7> x_pos_1(read_buf[4]);
+    bitset<7> x_pos_0(read_buf[5]);
+    string agv_x_pos_str = x_pos_3.to_string() + x_pos_2.to_string() + x_pos_1.to_string() + x_pos_0.to_string();
+    strlength = agv_x_pos_str.length();
+    char agv_x_pos_char[strlength + 1];
+    strcpy(agv_x_pos_char, agv_x_pos_str.c_str());
+    char *xposEnd;
+    unsigned long int agv_x_pos_des = strtoull(agv_x_pos_char, &xposEnd, 2);
+
     /**
      * This is a message object. You stuff it with data, and then publish it.
      */
@@ -155,7 +169,8 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     // std::stringstream ss;
     // ss << agv_ang_des/10; 
     // msg.data = ss.str();
-    msg.angle = agv_ang_des/10;
+    msg.angle = agv_ang_des/10; // degree
+    msg.x_pos = agv_x_pos_des/10; // mm
     //ROS_INFO("AGV Angle: %s", msg.data.c_str());
 
     /**
