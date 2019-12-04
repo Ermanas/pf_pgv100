@@ -82,6 +82,7 @@ if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
 
 unsigned char dir_straight[ 2 ] = {0xEC, 0x13}; // Straight ahead 
 unsigned char pos_req[ 2 ] = { 0xC8, 0x37}; // Position Request
+string selected_dir = "Straight ahead";
 write(serial_port,  dir_straight , sizeof( dir_straight));
 
 ROS_INFO(" Direction set to <> Straight Ahead <>");
@@ -161,6 +162,19 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     char *xposEnd;
     unsigned long int agv_x_pos_des = strtoull(agv_x_pos_char, &xposEnd, 2);
 
+    // Get Y-Position from the byte array [Bytes 7-8]
+    bitset<7> y_pos_1(read_buf[6]);
+    bitset<7> y_pos_0(read_buf[7]);
+    string agv_y_pos_str = y_pos_1.to_string() + y_pos_0.to_string();
+    strlength = agv_y_pos_str.length();
+    char agv_y_pos_char[strlength + 1];
+    strcpy(agv_y_pos_char, agv_y_pos_str.c_str());
+    char *yposEnd;
+    int agv_y_pos_des = strtoull(agv_y_pos_char, &yposEnd, 2);
+    if (agv_y_pos_des > 2000)
+    {
+      agv_y_pos_des = agv_y_pos_des - 16384;
+    }
     /**
      * This is a message object. You stuff it with data, and then publish it.
      */
@@ -171,6 +185,8 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     // msg.data = ss.str();
     msg.angle = agv_ang_des/10; // degree
     msg.x_pos = agv_x_pos_des/10; // mm
+    msg.y_pos = agv_y_pos_des; // mm
+    msg.direction = selected_dir;
     //ROS_INFO("AGV Angle: %s", msg.data.c_str());
 
     /**
