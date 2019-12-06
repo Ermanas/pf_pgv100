@@ -25,6 +25,7 @@ using namespace std;
 //using namespace std;
 // To handle CTRL + C Interrupt
 void my_handler(int s);
+unsigned long int string2decimal(string input);
 int serial_port = open("/dev/ttyUSB0", O_RDWR);
 
 int main(int argc, char **argv)
@@ -86,45 +87,9 @@ string selected_dir = "Straight ahead";
 write(serial_port,  dir_straight , sizeof( dir_straight));
 
 ROS_INFO(" Direction set to <> Straight Ahead <>");
-
-  /**
-   * The ros::init() function needs to see argc and argv so that it can perform
-   * any ROS arguments and name remapping that were provided at the command line.
-   * For programmatic remappings you can use a different version of init() which takes
-   * remappings directly, but for most command-line programs, passing argc and argv is
-   * the easiest way to do it.  The third argument to init() is the name of the node.
-   *
-   * You must call one of the versions of ros::init() before using any other
-   * part of the ROS system.
-   */
   ros::init(argc, argv, "pgv100_node");
-
-  /**
-   * NodeHandle is the main access point to communications with the ROS system.
-   * The first NodeHandle constructed will fully initialize this node, and the last
-   * NodeHandle destructed will close down the node.
-   */
   ros::NodeHandle n;
-
-  /**
-   * The advertise() function is how you tell ROS that you want to
-   * publish on a given topic name. This invokes a call to the ROS
-   * master node, which keeps a registry of who is publishing and who
-   * is subscribing. After this advertise() call is made, the master
-   * node will notify anyone who is trying to subscribe to this topic name,
-   * and they will in turn negotiate a peer-to-peer connection with this
-   * node.  advertise() returns a Publisher object which allows you to
-   * publish messages on that topic through a call to publish().  Once
-   * all copies of the returned Publisher object are destroyed, the topic
-   * will be automatically unadvertised.
-   *
-   * The second parameter to advertise() is the size of the message queue
-   * used for publishing messages.  If messages are published more quickly
-   * than we can send them, the number here specifies how many messages to
-   * buffer up before throwing some away.
-   */
-  ros::Publisher pgv100_pub = n.advertise<pf_pgv100::pgv_scan_data>("pgv100", 1000);
-
+  ros::Publisher pgv100_pub = n.advertise<pf_pgv100::pgv_scan_data>("pgv100", 100); // second parameter is buffer
   ros::Rate loop_rate(10);
 
   /**
@@ -135,20 +100,29 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
   int count = 0;
   while (ros::ok())
   {
+
     write(serial_port, pos_req , 2);
-    char read_buf [256];
+    char read_buf [21];
     memset(&read_buf, '\0', sizeof(read_buf));
     int byte_count = read(serial_port, &read_buf, sizeof(read_buf));
     
+        // Get Lane-Detection from the byte array [Bytes 1-2]
+    bitset<7> lane_detect_byte1(read_buf[0]);
+    bitset<7> lane_detect_byte0(read_buf[1]);
+    string agv_lane_detect_str = lane_detect_byte1.to_string() + lane_detect_byte0.to_string();
+    //cout << agv_lane_detect_str << endl;
+    string agv_c_lane_count_str = agv_lane_detect_str.substr(8, 2);
+    string agv_c_lane_detect_str = agv_lane_detect_str.substr(11, 1);
+    string agv_no_pos_str = agv_lane_detect_str.substr(5, 1);
+    int agv_c_lane_count_des = string2decimal(agv_c_lane_count_str);
+    int agv_no_color_lane_des = string2decimal(agv_c_lane_detect_str);
+    int agv_no_pos_des = string2decimal(agv_no_pos_str);
+
     // Get the angle from the byte array [Byte 11-12]
-    std::bitset<7> ang_1(read_buf[10]);
-    std::bitset<7> ang_0(read_buf[11]);
-    std::string agv_ang_str = ang_1.to_string() + ang_0.to_string();
-    int strlength = agv_ang_str.length();
-    char agv_ang_char[strlength + 1];
-    strcpy(agv_ang_char, agv_ang_str.c_str());
-    char *angEnd;
-    float agv_ang_des = strtoull(agv_ang_char, &angEnd, 2);
+    bitset<7> ang_1(read_buf[10]);
+    bitset<7> ang_0(read_buf[11]);
+    string agv_ang_str = ang_1.to_string() + ang_0.to_string();
+    double agv_ang_des = string2decimal(agv_ang_str)/(10.0);
 
     // Get the X-Position from the byte array [Bytes 3-4-5-6]
     bitset<3> x_pos_3(read_buf[2]);
@@ -156,82 +130,34 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     bitset<7> x_pos_1(read_buf[4]);
     bitset<7> x_pos_0(read_buf[5]);
     string agv_x_pos_str = x_pos_3.to_string() + x_pos_2.to_string() + x_pos_1.to_string() + x_pos_0.to_string();
-    strlength = agv_x_pos_str.length();
-    char agv_x_pos_char[strlength + 1];
-    strcpy(agv_x_pos_char, agv_x_pos_str.c_str());
-    char *xposEnd;
-    unsigned long int agv_x_pos_des = strtoull(agv_x_pos_char, &xposEnd, 2);
+    unsigned long int agv_x_pos_des = string2decimal(agv_x_pos_str)/(10); // to convert it to mm
 
     // Get Y-Position from the byte array [Bytes 7-8]
     bitset<7> y_pos_1(read_buf[6]);
     bitset<7> y_pos_0(read_buf[7]);
     string agv_y_pos_str = y_pos_1.to_string() + y_pos_0.to_string();
-    strlength = agv_y_pos_str.length();
-    char agv_y_pos_char[strlength + 1];
-    strcpy(agv_y_pos_char, agv_y_pos_str.c_str());
-    char *yposEnd;
-    int agv_y_pos_des = strtoull(agv_y_pos_char, &yposEnd, 2);
-    if (agv_y_pos_des > 2000)
-    {
-      agv_y_pos_des = agv_y_pos_des - 16384;
-    }
+    double agv_y_pos_des = string2decimal(agv_y_pos_str); 
+    if (agv_y_pos_des > 2000.0) // this makes y-pos zero centered
+      agv_y_pos_des = agv_y_pos_des - 16384.0;
+    if(agv_no_pos_des)
+    agv_y_pos_des *= -1;
 
-// Get Lane-Detection from the byte array [Bytes 1-2]
-    bitset<7> lane_detect_byte1(read_buf[0]);
-    bitset<7> lane_detect_byte0(read_buf[1]);
-    string agv_lane_detect_str = lane_detect_byte1.to_string() + lane_detect_byte0.to_string();
-    cout << agv_lane_detect_str << endl;
-    string agv_c_lane_count_str = agv_lane_detect_str.substr(8,2);
-    string agv_c_lane_detect_str = agv_lane_detect_str.substr(11,1);
-    string agv_no_pos_str = agv_lane_detect_str.substr(5,1);
-    cout << agv_c_lane_count_str << endl;
-    cout << agv_c_lane_detect_str << endl;
-    char agv_c_lane_count_char[ agv_c_lane_count_str.length() + 1 ];
-    char agv_no_color_lane_char[ agv_c_lane_detect_str.length() +1 ];
-    char agv_no_pos_char[ agv_no_pos_str.length() +1 ];
-    strcpy(agv_c_lane_count_char, agv_c_lane_count_str.c_str());
-    strcpy(agv_no_color_lane_char, agv_c_lane_detect_str.c_str());
-    strcpy(agv_no_pos_char, agv_no_pos_str.c_str());
-    char *clcEnd;
-    char *nclEnd;
-    char *npEnd;
-    int agv_c_lane_count_des = strtoull(agv_c_lane_count_char, &clcEnd, 2);
-    int agv_no_color_lane_des = strtoull(agv_no_color_lane_char,&nclEnd, 2);
-    int agv_no_pos_des = strtoull(agv_no_pos_char,&npEnd, 2);
-    
-    /**
-     * This is a message object. You stuff it with data, and then publish it.
-     */
     pf_pgv100::pgv_scan_data msg;
-    // std_msgs::String msg;
-    // std::stringstream ss;
-    // ss << agv_ang_des/10; 
-    // msg.data = ss.str();
-    msg.angle = agv_ang_des/10; // degree
-    msg.x_pos = agv_x_pos_des/10; // mm
-    msg.y_pos = agv_y_pos_des; // mm
+    msg.angle = agv_ang_des; // degree
+    msg.x_pos = agv_x_pos_des; // mm
+    msg.y_pos = agv_y_pos_des/10.0; // mm
     msg.direction = selected_dir;
     msg.color_lane_count = agv_c_lane_count_des;
     msg.no_color_lane = agv_no_color_lane_des;
     msg.no_pos = agv_no_pos_des;
-    //ROS_INFO("AGV Angle: %s", msg.data.c_str());
 
-    /**
-     * The publish() function is how you send messages. The parameter
-     * is the message object. The type of this object must agree with the type
-     * given as a template parameter to the advertise<>() call, as was done
-     * in the constructor above.
-     */
     pgv100_pub.publish(msg);
 
     ros::spinOnce();
-
     loop_rate.sleep();
     ++count;
     sigaction(SIGINT, &sigIntHandler, NULL);
   }
-
-
   return 0;
 }
 
@@ -239,4 +165,13 @@ void my_handler(int s){
            close(serial_port);
            printf("\n\nCaught signal %d\n Port closed.\n",s);
            exit(1); 
+}
+
+unsigned long int string2decimal(string input){
+    int strlength = input.length();
+    char input_char[strlength + 1];
+    strcpy(input_char, input.c_str());
+    char *pEnd;
+    unsigned long int out_dec = strtoull(input_char, &pEnd, 2);
+    return out_dec;
 }
