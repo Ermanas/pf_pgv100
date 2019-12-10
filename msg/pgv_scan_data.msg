@@ -6,3 +6,4 @@ string direction
 uint8 color_lane_count
 uint8 no_color_lane
 uint8 no_pos
+uint8 tag_detected

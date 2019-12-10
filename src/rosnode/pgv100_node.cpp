@@ -130,7 +130,7 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     bitset<7> ang_1(read_buf[10]);
     bitset<7> ang_0(read_buf[11]);
     string agv_ang_str = ang_1.to_string() + ang_0.to_string();
-    double agv_ang_des = string2decimal(agv_ang_str)/(10.0);
+    double agv_ang_des = string2decimal(agv_ang_str);
 
     // Get the X-Position from the byte array [Bytes 3-4-5-6]
     bitset<3> x_pos_3(read_buf[2]);
@@ -144,7 +144,8 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     bitset<7> y_pos_1(read_buf[6]);
     bitset<7> y_pos_0(read_buf[7]);
     string agv_y_pos_str = y_pos_1.to_string() + y_pos_0.to_string();
-    double agv_y_pos_des = string2decimal(agv_y_pos_str); 
+    double agv_y_pos_des = string2decimal(agv_y_pos_str);
+    cout << agv_y_pos_des << endl;
     if (agv_y_pos_des > 2000.0) // this makes y-pos zero centered
       agv_y_pos_des = agv_y_pos_des - 16384.0;
     // We get opposite values when we try the read the y-pos value from the colored and code strip.
@@ -153,7 +154,7 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     agv_y_pos_des *= -1;
 
     pf_pgv100::pgv_scan_data msg;
-    msg.angle = agv_ang_des; // degree
+    msg.angle = agv_ang_des/10.0; // degree
     msg.x_pos = agv_x_pos_des; // mm
     msg.y_pos = agv_y_pos_des/10.0; // mm
     msg.direction = selected_dir;
