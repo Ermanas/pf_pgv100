@@ -25,6 +25,7 @@
 #include <stdlib.h>     /* strtoull */
 #include <signal.h>
 #include <sstream>
+#include<cmath> // to use pow
 
 using namespace std;
 
@@ -89,6 +90,7 @@ if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
     printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
 }   
 
+double agv_x_pos_des = 0.0;
 unsigned char dir_straight[ 2 ] = {0xEC, 0x13}; // Straight ahead 
 unsigned char pos_req[ 2 ] = { 0xC8, 0x37}; // Position Request
 string selected_dir = "Straight ahead";
@@ -122,15 +124,17 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     string agv_c_lane_count_str = agv_lane_detect_str.substr(8, 2);
     string agv_c_lane_detect_str = agv_lane_detect_str.substr(11, 1);
     string agv_no_pos_str = agv_lane_detect_str.substr(5, 1);
+    string tag_detected = agv_lane_detect_str.substr(7,1);
     int agv_c_lane_count_des = string2decimal(agv_c_lane_count_str);
     int agv_no_color_lane_des = string2decimal(agv_c_lane_detect_str);
     int agv_no_pos_des = string2decimal(agv_no_pos_str);
+    int tag_detected_des = string2decimal(tag_detected); 
 
     // Get the angle from the byte array [Byte 11-12]
     bitset<7> ang_1(read_buf[10]);
     bitset<7> ang_0(read_buf[11]);
     string agv_ang_str = ang_1.to_string() + ang_0.to_string();
-    double agv_ang_des = string2decimal(agv_ang_str);
+    double agv_ang_des = string2decimal(agv_ang_str)/(10.0);
 
     // Get the X-Position from the byte array [Bytes 3-4-5-6]
     bitset<3> x_pos_3(read_buf[2]);
@@ -138,29 +142,32 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     bitset<7> x_pos_1(read_buf[4]);
     bitset<7> x_pos_0(read_buf[5]);
     string agv_x_pos_str = x_pos_3.to_string() + x_pos_2.to_string() + x_pos_1.to_string() + x_pos_0.to_string();
-    unsigned long int agv_x_pos_des = string2decimal(agv_x_pos_str)/(10); // to convert it to mm
-
+    agv_x_pos_des = string2decimal(agv_x_pos_str);
+    if(tag_detected_des != 0){
+      if (agv_x_pos_des > 2000.0) // this makes x-pos zero centered
+        agv_x_pos_des = agv_x_pos_des - pow(2,24) - 1;
+    }
     // Get Y-Position from the byte array [Bytes 7-8]
     bitset<7> y_pos_1(read_buf[6]);
     bitset<7> y_pos_0(read_buf[7]);
     string agv_y_pos_str = y_pos_1.to_string() + y_pos_0.to_string();
     double agv_y_pos_des = string2decimal(agv_y_pos_str);
-    cout << agv_y_pos_des << endl;
     if (agv_y_pos_des > 2000.0) // this makes y-pos zero centered
-      agv_y_pos_des = agv_y_pos_des - 16384.0;
+      agv_y_pos_des = agv_y_pos_des - 16383.0;
     // We get opposite values when we try the read the y-pos value from the colored and code strip.
     // So this is checking which strip that we're reading.
     if(agv_no_pos_des)
     agv_y_pos_des *= -1;
 
     pf_pgv100::pgv_scan_data msg;
-    msg.angle = agv_ang_des/10.0; // degree
-    msg.x_pos = agv_x_pos_des; // mm
+    msg.angle = agv_ang_des; // degree
+    msg.x_pos = agv_x_pos_des/10.0; // mm
     msg.y_pos = agv_y_pos_des/10.0; // mm
     msg.direction = selected_dir;
     msg.color_lane_count = agv_c_lane_count_des;
     msg.no_color_lane = agv_no_color_lane_des;
     msg.no_pos = agv_no_pos_des;
+    msg.tag_detected = tag_detected_des;
 
     pgv100_pub.publish(msg);
 

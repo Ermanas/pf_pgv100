@@ -1,6 +1,6 @@
 Header header
 float32 angle
-uint64 x_pos
+float32 x_pos
 float32 y_pos
 string direction
 uint8 color_lane_count
