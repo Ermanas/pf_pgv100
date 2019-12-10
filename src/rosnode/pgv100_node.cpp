@@ -1,5 +1,13 @@
 // This topic is operating the P+F PGV100
-
+//
+// Published message variable units
+//      - msg.angle ------------| degree
+//      - msg.x_pos ------------| millimeter
+//      - msg.y_pos ------------| millimeter
+//      - msg.direction --------| string;
+//      - msg.color_lane_count -| integer;
+//      - msg.no_color_lane ----| boolean;
+//      - msg.no_pos -----------| boolean;
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include <pf_pgv100/pgv_scan_data.h>
@@ -139,6 +147,8 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     double agv_y_pos_des = string2decimal(agv_y_pos_str); 
     if (agv_y_pos_des > 2000.0) // this makes y-pos zero centered
       agv_y_pos_des = agv_y_pos_des - 16384.0;
+    // We get opposite values when we try the read the y-pos value from the colored and code strip.
+    // So this is checking which strip that we're reading.
     if(agv_no_pos_des)
     agv_y_pos_des *= -1;
 
