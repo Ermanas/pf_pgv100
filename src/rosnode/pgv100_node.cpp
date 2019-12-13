@@ -8,9 +8,19 @@
 //      - msg.color_lane_count -| integer;
 //      - msg.no_color_lane ----| boolean;
 //      - msg.no_pos -----------| boolean;
+//
+// Subscribed message variable unit
+//      - msg.dir_command ------| uint8;
+//  0 - no lane selected
+//  1 - Right
+//  2 - Left
+//  3 - Straight Forward
+//
+
 #include "ros/ros.h"
 #include "std_msgs/String.h"
-#include <pf_pgv100/pgv_scan_data.h>
+#include <pf_pgv100/pgv_scan_data.h> // for message file
+#include <pf_pgv100/pgv_dir_msg.h>
 // C library headers
 #include <stdio.h>
 #include <string.h>
@@ -25,7 +35,7 @@
 #include <stdlib.h>     /* strtoull */
 #include <signal.h>
 #include <sstream>
-#include<cmath> // to use pow
+#include <cmath> // to use pow
 
 using namespace std;
 
@@ -36,6 +46,13 @@ using namespace std;
 void my_handler(int s);
 unsigned long int string2decimal(string input);
 int serial_port = open("/dev/ttyUSB0", O_RDWR);
+pf_pgv100::pgv_dir_msg sub_direction;
+
+void direction_callback(const pf_pgv100::pgv_dir_msg::ConstPtr& msg)
+{
+   sub_direction.dir_command = msg->dir_command;
+    cout << sub_direction << endl;
+}
 
 int main(int argc, char **argv)
 {
@@ -99,7 +116,8 @@ write(serial_port,  dir_straight , sizeof( dir_straight));
 ROS_INFO(" Direction set to <> Straight Ahead <>");
   ros::init(argc, argv, "pgv100_node");
   ros::NodeHandle n;
-  ros::Publisher pgv100_pub = n.advertise<pf_pgv100::pgv_scan_data>("pgv100", 100); // second parameter is buffer
+  ros::Publisher pgv100_pub = n.advertise<pf_pgv100::pgv_scan_data>("pgv100_scan", 100); // second parameter is buffer
+  ros::Subscriber pgv_dir = n.subscribe<pf_pgv100::pgv_dir_msg>("pgv_dir",100,direction_callback);
   ros::Rate loop_rate(10);
 
   /**
@@ -116,7 +134,7 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     memset(&read_buf, '\0', sizeof(read_buf));
     int byte_count = read(serial_port, &read_buf, sizeof(read_buf));
     
-        // Get Lane-Detection from the byte array [Bytes 1-2]
+    // Get Lane-Detection from the byte array [Bytes 1-2]
     bitset<7> lane_detect_byte1(read_buf[0]);
     bitset<7> lane_detect_byte0(read_buf[1]);
     string agv_lane_detect_str = lane_detect_byte1.to_string() + lane_detect_byte0.to_string();
@@ -158,7 +176,6 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     // So this is checking which strip that we're reading.
     if(agv_no_pos_des)
     agv_y_pos_des *= -1;
-
     pf_pgv100::pgv_scan_data msg;
     msg.angle = agv_ang_des; // degree
     msg.x_pos = agv_x_pos_des/10.0; // mm
@@ -175,7 +192,7 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     loop_rate.sleep();
     ++count;
     sigaction(SIGINT, &sigIntHandler, NULL);
-  }
+  }  
   return 0;
 }
 

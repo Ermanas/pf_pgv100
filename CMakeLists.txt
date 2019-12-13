@@ -51,6 +51,7 @@ find_package(catkin REQUIRED COMPONENTS
  add_message_files(
    FILES
    pgv_scan_data.msg
+   pgv_dir_msg.msg
  )
 
 ## Generate services in the 'srv' folder
