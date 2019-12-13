@@ -43,16 +43,21 @@ using namespace std;
 
 //using namespace std;
 // To handle CTRL + C Interrupt
+
+// Function Declerations
 void my_handler(int s);
 unsigned long int string2decimal(string input);
+void direction_callback(const pf_pgv100::pgv_dir_msg::ConstPtr& msg);
+// Global Variables
 int serial_port = open("/dev/ttyUSB0", O_RDWR);
 pf_pgv100::pgv_dir_msg sub_direction;
-
-void direction_callback(const pf_pgv100::pgv_dir_msg::ConstPtr& msg)
-{
-   sub_direction.dir_command = msg->dir_command;
-    cout << sub_direction << endl;
-}
+string selected_dir;
+double agv_x_pos_des = 0.0;
+unsigned char dir_straight[ 2 ] = {0xEC, 0x13}; // Straight ahead 
+unsigned char dir_left[ 2 ] = { 0xE8, 0x17}; // Follow Left
+unsigned char dir_right[ 2 ] = { 0xE4, 0x1B}; // Follow Right
+unsigned char dir_nolane[ 2 ] = { 0xE0, 0x1F}; // No lane is selected
+unsigned char pos_req[ 2 ] = { 0xC8, 0x37}; // Position Request
 
 int main(int argc, char **argv)
 {
@@ -107,17 +112,14 @@ if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
     printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
 }   
 
-double agv_x_pos_des = 0.0;
-unsigned char dir_straight[ 2 ] = {0xEC, 0x13}; // Straight ahead 
-unsigned char pos_req[ 2 ] = { 0xC8, 0x37}; // Position Request
-string selected_dir = "Straight ahead";
-write(serial_port,  dir_straight , sizeof( dir_straight));
+selected_dir = "No lane is selected";
+write(serial_port,  dir_nolane , sizeof( dir_straight));  
 
 ROS_INFO(" Direction set to <> Straight Ahead <>");
   ros::init(argc, argv, "pgv100_node");
-  ros::NodeHandle n;
-  ros::Publisher pgv100_pub = n.advertise<pf_pgv100::pgv_scan_data>("pgv100_scan", 100); // second parameter is buffer
-  ros::Subscriber pgv_dir = n.subscribe<pf_pgv100::pgv_dir_msg>("pgv_dir",100,direction_callback);
+  ros::NodeHandle pub, sub;
+  ros::Publisher pgv100_pub = pub.advertise<pf_pgv100::pgv_scan_data>("pgv100_scan", 100); // second parameter is buffer
+  ros::Subscriber pgv_dir = sub.subscribe<pf_pgv100::pgv_dir_msg>("pgv_dir",100,direction_callback);
   ros::Rate loop_rate(10);
 
   /**
@@ -125,7 +127,6 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
    * a unique string for each message.
    */
 
-  int count = 0;
   while (ros::ok())
   {
 
@@ -176,21 +177,22 @@ ROS_INFO(" Direction set to <> Straight Ahead <>");
     // So this is checking which strip that we're reading.
     if(agv_no_pos_des)
     agv_y_pos_des *= -1;
-    pf_pgv100::pgv_scan_data msg;
-    msg.angle = agv_ang_des; // degree
-    msg.x_pos = agv_x_pos_des/10.0; // mm
-    msg.y_pos = agv_y_pos_des/10.0; // mm
-    msg.direction = selected_dir;
-    msg.color_lane_count = agv_c_lane_count_des;
-    msg.no_color_lane = agv_no_color_lane_des;
-    msg.no_pos = agv_no_pos_des;
-    msg.tag_detected = tag_detected_des;
 
-    pgv100_pub.publish(msg);
+    pf_pgv100::pgv_scan_data mesaj;
+
+    mesaj.angle = agv_ang_des; // degree
+    mesaj.x_pos = agv_x_pos_des/10.0; // mm
+    mesaj.y_pos = agv_y_pos_des/10.0; // mm
+    mesaj.direction = selected_dir;
+    mesaj.color_lane_count = agv_c_lane_count_des;
+    mesaj.no_color_lane = agv_no_color_lane_des;
+    mesaj.no_pos = agv_no_pos_des;
+    mesaj.tag_detected = tag_detected_des;
+
+    pgv100_pub.publish(mesaj);
 
     ros::spinOnce();
-    loop_rate.sleep();
-    ++count;
+    //loop_rate.sleep();
     sigaction(SIGINT, &sigIntHandler, NULL);
   }  
   return 0;
@@ -209,4 +211,29 @@ unsigned long int string2decimal(string input){
     char *pEnd;
     unsigned long int out_dec = strtoull(input_char, &pEnd, 2);
     return out_dec;
+}
+
+void direction_callback(const pf_pgv100::pgv_dir_msg::ConstPtr &msg)
+{
+  sub_direction.dir_command = msg->dir_command;
+  if (sub_direction.dir_command == 0)
+  {
+    selected_dir = "No lane is selected";
+    write(serial_port, dir_nolane, sizeof(dir_nolane));
+  }
+  else if (sub_direction.dir_command == 1)
+  {
+    selected_dir = "Right lane is selected";
+    write(serial_port, dir_right, sizeof(dir_right));
+  }
+  else if (sub_direction.dir_command == 2)
+  {
+    selected_dir = "Left lane is selected";
+    write(serial_port, dir_left, sizeof(dir_left));
+  }
+  else if (sub_direction.dir_command == 3)
+  {
+    selected_dir = "Straigh Ahead";
+    write(serial_port, dir_straight, sizeof(dir_straight));
+  }
 }
